@@ -1,0 +1,15 @@
+[package]
+name = "instrument"
+version = "0.1.0"
+authors = ["Henrik Patjens <hpatjens@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+maplit = "1.0"
+time = "0.2"
+lazy_static = "1.4"
+serial_test = "0.4"
+winapi = { version = "0.3", features = ["profileapi"] }
+json = "0.12"
