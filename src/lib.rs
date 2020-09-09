@@ -1,4 +1,4 @@
-mod recording;
+pub mod recording;
 mod platform;
 
 #[cfg(test)] 
