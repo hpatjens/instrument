@@ -15,7 +15,7 @@ impl RecordingTimestamp {
         // https://docs.rs/winapi/0.3.9/winapi/um/profileapi/fn.QueryPerformanceCounter.html
         // https://www.youtube.com/watch?v=tAcUIEoy2Yk
         use winapi::{
-            shared::ntdef::LARGE_INTEGER,
+            um::winnt::LARGE_INTEGER,
             um::profileapi::QueryPerformanceCounter,
         };
         let time = unsafe {
@@ -40,7 +40,7 @@ impl RecordingTimestamp {
     #[inline]
     pub fn to_nanoseconds(&self) -> i128 {
         use winapi::{
-            shared::ntdef::LARGE_INTEGER,
+            um::winnt::LARGE_INTEGER,
             um::profileapi::QueryPerformanceFrequency,
         };
         let frequency = unsafe {
