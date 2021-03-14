@@ -13,3 +13,4 @@ lazy_static = "1.4"
 serial_test = "0.4"
 winapi = { version = "0.3", features = ["profileapi"] }
 json = "0.12"
+thread-id = "3.3"

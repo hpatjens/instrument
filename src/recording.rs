@@ -4,6 +4,7 @@ use std::{
     cell::RefCell,
     sync::{Mutex, Condvar},
     rc::Rc,
+    io::{self, Write},
 };
 
 use crate::platform::RecordingTimestamp;
@@ -27,12 +28,12 @@ thread_local! {
 
 #[derive(Debug)]
 pub struct RawThreadProfile {
-    pub thread_id: ThreadId,
+    pub thread_id: usize,
     pub region_backends: Vec<RegionRecordBackend>,
 }
 
 impl RawThreadProfile {
-    fn new(thread_id: ThreadId) -> Self {
+    fn new(thread_id: usize) -> Self {
         Self {
             thread_id,
             region_backends: Vec::with_capacity(1024),
@@ -49,7 +50,7 @@ struct ThreadLocal {
 impl ThreadLocal {
     pub fn new() -> Self {
         Self {
-            raw_thread_profile: Some(Box::new(RawThreadProfile::new(thread::current().id()))),
+            raw_thread_profile: Some(Box::new(RawThreadProfile::new(thread_id::get()))),
             stack: VecDeque::new(),
         }
     }
@@ -67,7 +68,7 @@ impl RegionRecord {
             let current_index = if let Some(ref mut raw_thread_profile) = thread_local.raw_thread_profile {
                 raw_thread_profile.region_backends.len()
             } else {
-                thread_local.raw_thread_profile = Some(Box::new(RawThreadProfile::new(thread::current().id())));
+                thread_local.raw_thread_profile = Some(Box::new(RawThreadProfile::new(thread_id::get())));
                 0
             };
 
@@ -168,9 +169,6 @@ impl From<&RegionRecordBackend> for Region {
     }
 }
 
-
-
-
 #[derive(Debug, Clone)]
 pub struct Instant {
     nanoseconds: i128,
@@ -212,34 +210,9 @@ impl RegionExecution {
 
 #[derive(Debug)]
 pub struct ThreadProfile {
+    pub thread_id: usize,
     pub regions: BTreeMap<Rc<Region>, Vec<RegionExecution>>,
     pub root_region_executions: Vec<RegionExecution>,
-}
-
-impl ThreadProfile {
-    pub fn to_chrome_tracing(&self) -> String {
-        let mut trace_events = json::Array::new();
-        fn traverse(region_execution: &RegionExecution, trace_events: &mut json::Array, pid: u32) {            
-            let start = region_execution.start.nanoseconds as f64 / 1000.0;
-            let duration = (region_execution.end.nanoseconds - region_execution.start.nanoseconds) as f64 / 1000.0;
-            let data = json::object! {
-                name: region_execution.region.name,
-                ph: "X",
-                ts: start,
-                dur: duration,
-                pid: pid,
-            };
-            trace_events.push(data);
-            for child_region_execution in &region_execution.children {
-                traverse(child_region_execution, trace_events, pid);
-            }
-        }
-        let pid = std::process::id();
-        for region_execution in &self.root_region_executions {
-            traverse(region_execution, &mut trace_events, pid);
-        }
-        json::stringify(trace_events)
-    }
 }
 
 impl RawThreadProfile {
@@ -264,6 +237,7 @@ impl RawThreadProfile {
             root_region_executions.push(root_region);
         }
         ThreadProfile {
+            thread_id: self.thread_id,
             regions,
             root_region_executions,
         }
@@ -298,5 +272,38 @@ impl RawThreadProfile {
             .and_modify(|region_executions| region_executions.push(region_execution.clone()))
             .or_insert(vec![region_execution.clone()]);
         region_execution
+    }
+}
+
+fn traverse<W: Write>(region_execution: &RegionExecution, target: &mut W, pid: u32, tid: usize) -> io::Result<()> {
+    let start = region_execution.start.nanoseconds as f64 / 1000.0;
+    let duration = (region_execution.end.nanoseconds - region_execution.start.nanoseconds) as f64 / 1000.0;
+    let data = json::object! {
+        name: region_execution.region.name,
+        ph: "X",
+        ts: start,
+        dur: duration,
+        pid: pid,
+        tid: tid,
+    };
+    target.write_all(json::stringify(data).as_bytes())?;
+    target.write(b",")?;
+    for child_region_execution in &region_execution.children {
+        traverse(child_region_execution, target, pid, tid)?;
+    }
+    Ok(())
+}
+
+pub trait ToChromeTracing {
+    fn to_chrome_tracing<W: Write>(&self, target: &mut W) -> io::Result<()>;
+}
+
+impl ToChromeTracing for ThreadProfile {
+    fn to_chrome_tracing<W: Write>(&self, target: &mut W) -> io::Result<()> {
+        let pid = std::process::id();
+        for region_execution in &self.root_region_executions {
+            traverse(region_execution, target, pid, self.thread_id)?;
+        }
+        Ok(())
     }
 }

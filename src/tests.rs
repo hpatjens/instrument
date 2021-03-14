@@ -21,7 +21,7 @@ mod profiling {
     #[serial]
     fn single_thread_single_region() {
         fn main() { 
-            let _region = instrument::region!("main");
+            instrument::region!("main");
             sleep();
         }
         main();
@@ -36,11 +36,11 @@ mod profiling {
     #[serial]
     fn single_thread_multiple_regions() {
         fn function1() {
-            let _region = instrument::region!("function1");
+            instrument::region!("function1");
             sleep();
         }
         fn main() { 
-            let _region = instrument::region!("main");
+            instrument::region!("main");
             function1();
         }
         main();
@@ -64,14 +64,14 @@ mod profiling {
     fn multi_thread_single_regions() {
         let join_handle1 = thread::spawn(|| {
             fn main1() {
-                let _region = instrument::region!("main1");
+                instrument::region!("main1");
                 sleep();
             }
             main1()
         });
         let join_handle2 = thread::spawn(|| {
             fn main2() {
-                let _region = instrument::region!("main2");
+                instrument::region!("main2");
                 sleep();
             }
             main2()
@@ -98,12 +98,12 @@ mod profiling {
     fn single_thread_multiple_regions_measurement() {
         const COUNT: usize = 2_000;
         fn function1() {
-            let _region = instrument::region!("function1");
+            instrument::region!("function1");
             thread::sleep(Duration::from_millis(1));
             
         }
         fn main() { 
-            let _region = instrument::region!("main");
+            instrument::region!("main");
             for _ in 0..COUNT {
                 function1();
             }
