@@ -1,16 +1,15 @@
 use std::{
-    thread::{self, ThreadId},
-    collections::{VecDeque, BTreeMap},
     cell::RefCell,
-    sync::{Mutex, Condvar},
-    rc::Rc,
+    collections::{BTreeMap, VecDeque},
     io::{self, Write},
+    rc::Rc,
+    sync::{Condvar, Mutex},
 };
 
 use crate::platform::RecordingTimestamp;
 
-use time::{Duration};
 use lazy_static::lazy_static;
+use time::Duration;
 
 #[derive(Default)]
 struct Global {
@@ -20,7 +19,7 @@ struct Global {
 lazy_static! {
     static ref GLOBAL: Mutex<Global> = Mutex::new(Global::default());
     static ref CONDVAR: Condvar = Condvar::new();
-} 
+}
 
 thread_local! {
     static THREAD_LOCAL: RefCell<ThreadLocal> = RefCell::new(ThreadLocal::new());
@@ -89,7 +88,7 @@ impl RegionRecord {
                     parent,
                     start: RecordingTimestamp::now(),
                     end: None,
-                });    
+                });
             }
         });
         RegionRecord
@@ -116,7 +115,8 @@ impl Drop for RegionRecord {
             // If the stack is empty the regions can be send to the global collection point
             if thread_local.stack.len() == 0 {
                 let mut g = GLOBAL.lock().unwrap();
-                let raw_thread_profile = thread_local.raw_thread_profile
+                let raw_thread_profile = thread_local
+                    .raw_thread_profile
                     .take()
                     .expect("there must be a raw_thread_profile when drop is executed");
                 g.profiles.push_back(raw_thread_profile);
@@ -150,8 +150,6 @@ pub fn try_recv() -> Option<Box<RawThreadProfile>> {
     g.profiles.pop_front()
 }
 
-
-
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Region {
     pub name: &'static str,
@@ -176,19 +174,20 @@ pub struct Instant {
 
 impl Instant {
     fn new(nanoseconds: i128) -> Self {
-        Self {
-            nanoseconds,
-        }
+        Self { nanoseconds }
     }
 
+    #[allow(dead_code)]
     fn as_nanoseconds(&self) -> f64 {
         self.nanoseconds as f64
     }
 
+    #[allow(dead_code)]
     fn as_microseconds(&self) -> f64 {
         self.as_nanoseconds() / 1_000.0
     }
 
+    #[allow(dead_code)]
     fn as_milliseconds(&self) -> f64 {
         self.as_nanoseconds() / 1_000_000.0
     }
@@ -221,7 +220,8 @@ impl RawThreadProfile {
         let mut children_indices: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (index, region_backend) in self.region_backends.iter().enumerate() {
             if let Some(parent_index) = region_backend.parent {
-                children_indices.entry(parent_index)
+                children_indices
+                    .entry(parent_index)
                     .and_modify(|children| children.push(index))
                     .or_insert(vec![index]);
             } else {
@@ -245,10 +245,10 @@ impl RawThreadProfile {
 
     fn generate_region_execution(
         &self,
-        region_backend: &RegionRecordBackend, 
-        index: usize, 
-        children_indices: &BTreeMap<usize, Vec<usize>>, 
-        regions: &mut BTreeMap<Rc<Region>, Vec<RegionExecution>>
+        region_backend: &RegionRecordBackend,
+        index: usize,
+        children_indices: &BTreeMap<usize, Vec<usize>>,
+        regions: &mut BTreeMap<Rc<Region>, Vec<RegionExecution>>,
     ) -> RegionExecution {
         let mut children = Vec::new();
         // Traverse the tree of RegionRecordBackends and collect the children for this one
@@ -265,10 +265,17 @@ impl RawThreadProfile {
             children: children.clone(),
             region: region.clone(),
             start: Instant::new(region_backend.start.to_nanoseconds()),
-            end: Instant::new(region_backend.end.as_ref().expect("The RegionBackend must be finalized by setting the end time before.").to_nanoseconds()),
+            end: Instant::new(
+                region_backend
+                    .end
+                    .as_ref()
+                    .expect("The RegionBackend must be finalized by setting the end time before.")
+                    .to_nanoseconds(),
+            ),
         };
         // Add the children to the profile-wide mapping from Region to RegionExecution
-        regions.entry(region)
+        regions
+            .entry(region)
             .and_modify(|region_executions| region_executions.push(region_execution.clone()))
             .or_insert(vec![region_execution.clone()]);
         region_execution
